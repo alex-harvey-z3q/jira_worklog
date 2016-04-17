@@ -1,6 +1,0 @@
----
-default: 'BKR-723'
-worklog:
-  '2016-04-13': []  # log all work to default
-  '2016-04-14':
-    - 'MODULES-3125:4h'

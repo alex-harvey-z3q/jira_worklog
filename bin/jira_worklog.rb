@@ -6,7 +6,10 @@ require 'highline'
 require 'unirest'
 require 'optparse'
 
-def add_time(ticket, date, time_to_log_in_seconds, config)
+##
+# Adds time in seconds via Jira 7 REST API v2
+
+def add_time(ticket, date, time_to_log_in_seconds, config, state, state_file)
   time_to_log = s2hm(time_to_log_in_seconds)
   puts "Adding #{time_to_log} to worklog in #{ticket} on #{date} ..."
   response = Unirest.post(
@@ -24,10 +27,14 @@ def add_time(ticket, date, time_to_log_in_seconds, config)
     }.to_json
   )
   unless response.code == 201
+    write_state(state, state_file)
     raise "Failed adding to worklog in #{ticket} for #{date}:" +
           " returned #{response.code}: #{response.body.to_s}"
   end
 end
+
+##
+# Converts hours and minutes to seconds.
 
 def hm2s(hm)
   if hm =~ /\d+h +\d+m/
@@ -42,15 +49,21 @@ def hm2s(hm)
   end
 end
 
+##
+# Converts seconds to hours and minutes.
+
 def s2hm(s)
   "%sh %sm" % [s / 3600, s / 60 % 60].map { |t| t.to_s }
 end
+
+##
+# Returns the options from the command line.
 
 def get_options
   options = OpenStruct.new
   options.config_file = File.join(Dir.home, '.jira_worklog/config.yml')
   options.data_file   = File.join(Dir.home, '.jira_worklog/data.yml')
-  options.state_file  = File.join(Dir.home, '.jira_worklog/state.txt')
+  options.state_file  = File.join(Dir.home, '.jira_worklog/state.yml')
   opt_parser = OptionParser.new do |opts|
     opts.banner = "Usage: #{$0} [options]"
     opts.separator ''
@@ -58,7 +71,7 @@ def get_options
     opts.on('-f', '--datafile DATAFILE', String, 'data file with worklog data') do |v|
       options.data_file = v
     end
-    opts.on('-c', '--configfile CONFIGFILE', String, 'config file') do |v|
+    opts.on('-c', '--configfile CONFIGFILE', String, 'file containing server, user name and infill') do |v|
       options.config_file = v
     end
   end
@@ -73,10 +86,17 @@ def get_options
   options
 end
 
+##
+# Get a password from the command line.
+
 def get_password
   cli = HighLine.new
   cli.ask('Enter your password: ') { |q| q.echo = false }
 end
+
+##
+# Returns the YAML formatted config file as a Hash.
+# +config_file+:: Path to the config file.
 
 def get_config(config_file)
   config = YAML::load_file(config_file)
@@ -105,6 +125,9 @@ def get_config(config_file)
 
   config
 end
+
+##
+# Returns the YAML formatted data file as a Hash.
 
 def get_data(data_file)
   data = YAML::load_file(data_file)
@@ -138,33 +161,44 @@ def get_data(data_file)
   data
 end
 
+##
+# Get the state from disk.
+
 def get_state(state_file)
-  File.readlines(state_file).map(&:chomp)
+  YAML::load_file(state_file)
 end
+
+##
+# Write the state back to disk.
 
 def write_state(state, state_file)
   File.open(state_file, 'w') do |f|
-    f.puts state
+    f.write state.to_yaml
   end
 end
 
 if $0 == __FILE__
   options = get_options
+
   data   = get_data(options.data_file)
   config = get_config(options.config_file)
   state  = get_state(options.state_file)
+
   data['worklog'].each do |date, values|
-    next if state.include?(date)
+    next if state.has_key?(date) and state[date] == values
+    state[date] = [] unless state.has_key?(date)
     total_seconds = 0
     values.each do |value|
+      next if state.has_key?(date) and state[date].include?(value)
       ticket, hm = /(.*):(.*)/.match(value).captures
-      add_time(ticket, date, hm2s(hm), config)
+      add_time(ticket, date, hm2s(hm), config, state, options.state_file)
+      state[date].push(value)
       total_seconds += hm2s(hm)
     end
     if data.has_key?('default')
-      add_time(data['default'], date, hm2s(config['infill']), config)
+      add_time(data['default'], date, (hm2s(config['infill']) - total_seconds),
+               config, state, options.state_file)
     end
-    state.push(date)
   end
   write_state(state, options.state_file)
 end

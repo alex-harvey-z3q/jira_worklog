@@ -2,60 +2,49 @@ require 'spec_helper'
 require_relative '../bin/jira_worklog'
 
 describe '#add_time' do
+  url = 'https://alex:password@jira.example.com/rest/api/2/issue/DEV-123/worklog'
+  request = {
+    :headers => {
+      'Accept'          => '*/*; q=0.5, application/xml',
+      'Accept-Encoding' => 'gzip',
+      'Content-Length'  => '66',
+      'Content-Type'    => 'application/json',
+      'User-Agent'      => 'unirest-ruby/1.1',
+    },
+    :body => "{\"started\":\"2016-04-16T09:00:00.000+1000\",\"timeSpentSeconds\":1800}",
+  }
+  bad_response = {
+    :status  => 404,
+    :body    => 'Issue Does Not Exist',
+    :headers => {},
+  }
+  good_response = {
+    :status  => 201,
+    :body    => 'Updated',
+    :headers => {},
+  }
+  config = {
+    'server'      => 'jira.example.com',
+    'username'    => 'alex',
+    'password'    => 'password',
+    'time_string' => 'T09:00:00.000+1000',
+  }
+
   before :each do
-    allow(STDOUT).to receive(:puts)
+    allow(STDOUT).to receive(:puts)  # silence puts.
   end
 
   it 'should raise if issue does not exist' do
-    stub_request(
-        :post,
-        'https://alex:password@jira.example.com/rest/api/2/issue/DEV-123/worklog'
-      ).
-      with(:body    => "{\"started\":\"2016-04-16T09:00:00.000+1000\",\"timeSpentSeconds\":1800}",
-           :headers => {
-             "Accept"=>"*/*; q=0.5, application/xml",
-             "Accept-Encoding"=>"gzip",
-             "Content-Length"=>"66",
-             "Content-Type"=>"application/json",
-             "User-Agent"=>"unirest-ruby/1.1"
-           }
-      ).
-      to_return(:status  => 404,
-                :body    => 'Issue Does Not Exist',
-                :headers => {}
-      )
-    expect { add_time('DEV-123', '2016-04-16', 1800, {
-      'server'      => 'jira.example.com',
-      'username'    => 'alex',
-      'password'    => 'password',
-      'time_string' => 'T09:00:00.000+1000',
-    }) }.to raise_error(RuntimeError, /Failed adding to worklog in DEV-123 for 2016-04-16/)
+    stub_request(:post, url).with(request).to_return(bad_response)
+    allow_any_instance_of(Object).to receive(:write_state).and_return(nil)
+    expect { add_time('DEV-123', '2016-04-16', 1800, config, {}, '/some/file') }.
+      to raise_error(RuntimeError, /Failed adding to worklog in DEV-123 for 2016-04-16/)
   end
 
-  it 'should raise if issue does not exist' do
-    stub_request(
-        :post,
-        'https://alex:password@jira.example.com/rest/api/2/issue/DEV-123/worklog'
-      ).
-      with(:body    => "{\"started\":\"2016-04-16T09:00:00.000+1000\",\"timeSpentSeconds\":1800}",
-           :headers => {
-             "Accept"=>"*/*; q=0.5, application/xml",
-             "Accept-Encoding"=>"gzip",
-             "Content-Length"=>"66",
-             "Content-Type"=>"application/json",
-             "User-Agent"=>"unirest-ruby/1.1"
-           }
-      ).
-      to_return(:status  => 201,
-                :body    => 'Updated',
-                :headers => {}
-      )
-    expect(add_time('DEV-123', '2016-04-16', 1800, {
-      'server'      => 'jira.example.com',
-      'username'    => 'alex',
-      'password'    => 'password',
-      'time_string' => 'T09:00:00.000+1000',
-    })).to be_nil
+  it 'should quietly return nil if all is well' do
+    stub_request(:post, url).with(request).to_return(good_response)
+    expect(add_time('DEV-123', '2016-04-16', 1800, config, {}, '/some/file')).
+      to be_nil
   end
 end
 
@@ -82,16 +71,12 @@ describe '#get_config' do
 end
 
 describe '#write_state and #get_state' do
-  it 'should write an array and read it back from disk' do
-    write_state(['2016-04-12', '2016-04-13'], 'state_file.tmp')
-    expect(get_state('state_file.tmp')).to match_array(['2016-04-12', '2016-04-13'])
-    File.delete('state_file.tmp')
-  end
+  state = {'2016-04-14'=>['DEV-6233:4h', 'PROJ-4123:3h 30m'], '2016-04-15'=>['PROJ-3215:30m']}
 
-  it 'should correctly push dates to the end of an array' do
-    state = ['2016-04-12', '2016-04-13']
-    state.push('2016-04-14')
-    expect(state).to match_array(['2016-04-12', '2016-04-13', '2016-04-14'])
+  it 'should write an array and read it back from disk' do
+    write_state(state, 'state_file.tmp')
+    expect(get_state('state_file.tmp')).to eq state
+    File.delete('state_file.tmp')
   end
 end 
 
