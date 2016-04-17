@@ -1,0 +1,11 @@
+---
+language: ruby
+before_install: rm Gemfile.lock || true
+matrix:
+  include:
+  - rvm: 2.0.0
+  - rvm: 2.1.0
+  - rvm: 2.2.0
+script: 'bundle exec rake spec'
+notifications:
+  email: false

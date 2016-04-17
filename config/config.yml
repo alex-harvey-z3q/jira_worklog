@@ -1,0 +1,4 @@
+---
+server: 'jira.example.com'
+username: 'fred'
+infill: '8h'
