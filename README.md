@@ -21,6 +21,13 @@ Password: <enter root password>
 
 (The root password is required to copy the executable to `/usr/local/bin`.)
 
+To upgrade:
+
+```
+$ ./setup.sh -upgrade
+Password: <enter root password>
+```
+
 To run:
 
 ```
