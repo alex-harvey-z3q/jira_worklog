@@ -185,16 +185,28 @@ if $0 == __FILE__
   state  = get_state(options.state_file)
 
   data['worklog'].each do |date, values|
+
+    # Skip the data file date entry if an identical one is in state.
     next if state.has_key?(date) and state[date] == values
+
+    # Create a record in state file for this date if there isn't one.
     state[date] = [] unless state.has_key?(date)
+
+    # Count total seconds used today.
     total_seconds = 0
+
     values.each do |value|
+
+      # Skip the data file time entry if it's already in state.
       next if state.has_key?(date) and state[date].include?(value)
+
       ticket, hm = /(.*):(.*)/.match(value).captures
       add_time(ticket, date, hm2s(hm), config, state, options.state_file)
       state[date].push(value)
       total_seconds += hm2s(hm)
     end
+
+    # Infill difference to the default key if it's defined.
     if data.has_key?('default')
       add_time(data['default'], date, (hm2s(config['infill']) - total_seconds),
                config, state, options.state_file)
