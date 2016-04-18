@@ -9,7 +9,9 @@ require 'optparse'
 ##
 # Adds time in seconds via Jira 7 REST API v2
 
-def add_time(ticket, date, time_to_log_in_seconds, config, state, state_file)
+def add_time(ticket, date, time_to_log_in_seconds,
+             comment, config, state, state_file)
+
   time_to_log = s2hm(time_to_log_in_seconds)
   puts "Adding #{time_to_log} to worklog in #{ticket} on #{date} ..."
   response = Unirest.post(
@@ -22,15 +24,18 @@ def add_time(ticket, date, time_to_log_in_seconds, config, state, state_file)
       :password => config['password'],
     },
     parameters: {
+      'comment'          => comment,
       'started'          => date + config['time_string'],
       'timeSpentSeconds' => time_to_log_in_seconds,
     }.to_json
   )
+
   unless response.code == 201
     write_state(state, state_file)
     raise "Failed adding to worklog in #{ticket} for #{date}:" +
           " returned #{response.code}: #{response.body.to_s}"
   end
+
 end
 
 ##
@@ -152,7 +157,7 @@ def get_data(data_file)
     end
     v.each do |l|
       next if l == 'noinfill'
-      if l !~ /[A-Z]+-\d+:(?:\d+h?|\d+m|\d+h +\d+m)$/
+      if l !~ /[A-Z]+-\d+:(?:\d+h?|\d+m|\d+h +\d+m)(?::.*)?$/
         raise "Syntax error in Worklog:" +
           " -----> #{l} in #{data['worklog'].to_s}"
       end
@@ -206,8 +211,9 @@ if $0 == __FILE__
       # Handle an entry that is just 'noinfill'
       noinfill = true and next if value == 'noinfill'
 
-      ticket, hm = /(.*):(.*)/.match(value).captures
-      add_time(ticket, date, hm2s(hm), config, state, options.state_file)
+      ticket, hm, comment = value.split(/:/)
+
+      add_time(ticket, date, hm2s(hm), comment, config, state, options.state_file)
       state[date].push(value)
       total_seconds += hm2s(hm)
     end
@@ -215,7 +221,7 @@ if $0 == __FILE__
     # Infill difference to the default key if it's defined.
     if data.has_key?('default') and not noinfill
       add_time(data['default'], date, (hm2s(config['infill']) - total_seconds),
-               config, state, options.state_file)
+               comment, config, state, options.state_file)
     end
   end
   write_state(state, options.state_file)

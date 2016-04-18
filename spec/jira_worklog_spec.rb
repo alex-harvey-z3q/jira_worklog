@@ -7,11 +7,11 @@ describe '#add_time' do
     :headers => {
       'Accept'          => '*/*; q=0.5, application/xml',
       'Accept-Encoding' => 'gzip',
-      'Content-Length'  => '66',
+      'Content-Length'  => '79',
       'Content-Type'    => 'application/json',
       'User-Agent'      => 'unirest-ruby/1.1',
     },
-    :body => "{\"started\":\"2016-04-16T09:00:00.000+1000\",\"timeSpentSeconds\":1800}",
+    :body => "{\"comment\":\"\",\"started\":\"2016-04-16T09:00:00.000+1000\",\"timeSpentSeconds\":1800}",
   }
   bad_response = {
     :status  => 404,
@@ -37,13 +37,13 @@ describe '#add_time' do
   it 'should raise if issue does not exist' do
     stub_request(:post, url).with(request).to_return(bad_response)
     allow_any_instance_of(Object).to receive(:write_state).and_return(nil)
-    expect { add_time('DEV-123', '2016-04-16', 1800, config, {}, '/some/file') }.
+    expect { add_time('DEV-123', '2016-04-16', 1800, '', config, {}, '/some/file') }.
       to raise_error(RuntimeError, /Failed adding to worklog in DEV-123 for 2016-04-16/)
   end
 
   it 'should quietly return nil if all is well' do
     stub_request(:post, url).with(request).to_return(good_response)
-    expect(add_time('DEV-123', '2016-04-16', 1800, config, {}, '/some/file')).
+    expect(add_time('DEV-123', '2016-04-16', 1800, '', config, {}, '/some/file')).
       to be_nil
   end
 end
@@ -138,6 +138,11 @@ describe '#get_data' do
   it 'should accept a noinfill option' do
     allow(YAML).to receive(:load_file).with('/some/file').and_return({'worklog'=>{'2016-04-14'=>['MODULES-3125:4h', 'noinfill']}})
     expect(get_data('/some/file')).to include({'worklog'=>{'2016-04-14'=>['MODULES-3125:4h', 'noinfill']}})
+  end
+
+  it 'should accept a comment' do
+    allow(YAML).to receive(:load_file).with('/some/file').and_return({'worklog'=>{'2016-04-14'=>['MODULES-3125:8h:I did stuff']}})
+    expect(get_data('/some/file')).to include({'worklog'=>{'2016-04-14'=>['MODULES-3125:8h:I did stuff']}})
   end
 end
 

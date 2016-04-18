@@ -81,17 +81,19 @@ worklog:
   - DEV-6233:4h
   - PROJ-4123:3h 30m
   - DEV-6300:1h
-  2016-04-15:
+  '2016-04-15':
   - PROJ-4123:30m
   - DEV-6233:30m
   - PROJ-4123:2h
   - DEV-6233:30m
   - PROJ-4123:3h
   - DEV-6300:1h
-  '2016-04-16': []  # log infill hours to default.
+  '2016-04-16': []               # infill all to default.
   '2016-04-17':
-  - PROJ-4123
-  - noinfill    # disable infilling for this date only.
+  - PROJ-4123:1h:Woken by pager  # optional comment.
+  '2016-04-18':
+  - PROJ-4123:1h
+  - noinfill                     # disable infilling.
 ```
 
 #### `default`
@@ -100,7 +102,7 @@ This is a default Jira ticket that can be used to log all remaining time against
 
 #### `worklog`
 
-The worklog is a Hash of Arrays of date:time pairs in ISO 8601 date format.  We use a colon-separated string to minimise key strokes spent on data entry.
+The worklog is a Hash of Arrays of `date:time` pairs, or optionally `date:time:comment` triplets.  The date must be in ISO 8601 date format.  We use a colon-separated string to minimise key strokes spent on data entry.
 
 ##### `noinfill`
 
