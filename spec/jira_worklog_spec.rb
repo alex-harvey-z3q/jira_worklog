@@ -1,6 +1,74 @@
 require 'spec_helper'
 require_relative '../bin/jira_worklog'
 
+config = {
+  'server'      => 'jira.example.com',
+  'username'    => 'alex',
+  'password'    => 'password',
+  'time_string' => 'T09:00:00.000+1000',
+  'infill'      => '8h',
+}
+
+describe '#process' do
+  it 'should take empty state and replace it with the worklog in data' do
+    options = OpenStruct.new
+    options.state_file = 'state_file.tmp'
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-14'=>['MODULES-3125:30m'],
+      },
+    }
+    allow_any_instance_of(Object).to receive(:add_time).and_return(nil)
+    process(data, state, config, options)
+    expect(get_state('state_file.tmp')).to eq data['worklog']
+  end
+
+  it 'should take state and add the difference between worklog' do
+    options = OpenStruct.new
+    options.state_file = 'state_file.tmp'
+    state = {
+      '2016-04-14'=>['MODULES-3125:30m'],
+    }
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-14'=>['MODULES-3125:30m'],
+        '2016-04-15'=>['MODULES-3125:1h'],
+      },
+    }
+    allow_any_instance_of(Object).to receive(:add_time).and_return(nil)
+    process(data, state, config, options)
+    expect(get_state('state_file.tmp')).to eq data['worklog']
+  end
+
+  it 'should insert time entries into state' do
+    options = OpenStruct.new
+    options.state_file = 'state_file.tmp'
+    state = {
+      '2016-04-14'=>['MODULES-3125:30m'],
+      '2016-04-15'=>['MODULES-3125:1h'],
+    }
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-14'=>['BKR-723:1h'],
+      },
+    }
+    expected = {
+      '2016-04-14'=>['MODULES-3125:30m', 'BKR-723:1h'],
+      '2016-04-15'=>['MODULES-3125:1h'],
+    }
+    allow_any_instance_of(Object).to receive(:add_time).and_return(nil)
+    process(data, state, config, options)
+    expect(get_state('state_file.tmp')).to eq expected
+  end
+  after :each do
+    File.delete('state_file.tmp')
+  end
+end
+
 describe '#add_time' do
   url = 'https://alex:password@jira.example.com/rest/api/2/issue/DEV-123/worklog'
   request = {
@@ -22,12 +90,6 @@ describe '#add_time' do
     :status  => 201,
     :body    => 'Updated',
     :headers => {},
-  }
-  config = {
-    'server'      => 'jira.example.com',
-    'username'    => 'alex',
-    'password'    => 'password',
-    'time_string' => 'T09:00:00.000+1000',
   }
 
   before :each do

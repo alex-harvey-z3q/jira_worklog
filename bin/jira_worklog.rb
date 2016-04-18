@@ -181,14 +181,10 @@ def write_state(state, state_file)
   end
 end
 
-if $0 == __FILE__
+##
+# Main loop.
 
-  options = get_options
-
-  data   = get_data(options.data_file)
-  config = get_config(options.config_file)
-  state  = get_state(options.state_file)
-
+def process(data, state, config, options)
   opts = {
     :config => config,
     :state  => state,
@@ -217,7 +213,9 @@ if $0 == __FILE__
       noinfill = true and next if value == 'noinfill'
 
       ticket, hm, comment = value.split(/:/)
+      comment ||= ''
 
+      # Add to Jira.
       add_time(ticket, opts.merge!({
         :date    => date,
         :seconds => hm2s(hm),
@@ -231,13 +229,24 @@ if $0 == __FILE__
     # Infill difference to the default key if it's defined.
     if data.has_key?('default') and not noinfill
 
+      # Add to Jira with no comment.
       add_time(data['default'], opts.merge!({
         :date       => date,
         :seconds    => (hm2s(config['infill']) - total_seconds),
-        :comment    => comment,
+        :comment    => '',
       }))
 
     end
   end
+
+  # Update state file.
   write_state(state, options.state_file)
+end
+
+if $0 == __FILE__
+  options = get_options
+  data    = get_data(options.data_file)
+  state   = get_state(options.state_file)
+  config  = get_config(options.config_file)
+  process(data, state, config, options)
 end
