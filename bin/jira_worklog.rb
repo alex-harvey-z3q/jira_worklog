@@ -9,30 +9,28 @@ require 'optparse'
 ##
 # Adds time in seconds via Jira 7 REST API v2
 
-def add_time(ticket, date, time_to_log_in_seconds,
-             comment, config, state, state_file)
-
-  time_to_log = s2hm(time_to_log_in_seconds)
-  puts "Adding #{time_to_log} to worklog in #{ticket} on #{date} ..."
+def add_time(ticket, opts)
+  time_to_log = s2hm(opts[:seconds])
+  puts "Adding #{time_to_log} to worklog in #{ticket} on #{opts[:date]} ..."
   response = Unirest.post(
-    "https://#{config['server']}/rest/api/2/issue/#{ticket}/worklog",
+    "https://#{opts[:config]['server']}/rest/api/2/issue/#{ticket}/worklog",
     headers: {
       'Content-Type' => 'application/json',
     },
     auth: {
-      :user     => config['username'],
-      :password => config['password'],
+      :user     => opts[:config]['username'],
+      :password => opts[:config]['password'],
     },
     parameters: {
-      'comment'          => comment,
-      'started'          => date + config['time_string'],
-      'timeSpentSeconds' => time_to_log_in_seconds,
+      'comment'          => opts[:comment],
+      'started'          => opts[:date] + opts[:config]['time_string'],
+      'timeSpentSeconds' => opts[:seconds],
     }.to_json
   )
 
   unless response.code == 201
-    write_state(state, state_file)
-    raise "Failed adding to worklog in #{ticket} for #{date}:" +
+    write_state(opts[:state], opts[:state_file])
+    raise "Failed adding to worklog in #{ticket} for #{opts[:date]}:" +
           " returned #{response.code}: #{response.body.to_s}"
   end
 
@@ -184,11 +182,18 @@ def write_state(state, state_file)
 end
 
 if $0 == __FILE__
+
   options = get_options
 
   data   = get_data(options.data_file)
   config = get_config(options.config_file)
   state  = get_state(options.state_file)
+
+  opts = {
+    :config => config,
+    :state  => state,
+    :state_file => options.state_file,
+  }
 
   data['worklog'].each do |date, values|
 
@@ -213,15 +218,25 @@ if $0 == __FILE__
 
       ticket, hm, comment = value.split(/:/)
 
-      add_time(ticket, date, hm2s(hm), comment, config, state, options.state_file)
+      add_time(ticket, opts.merge!({
+        :date    => date,
+        :seconds => hm2s(hm),
+        :comment => comment,
+      }))
+
       state[date].push(value)
       total_seconds += hm2s(hm)
     end
 
     # Infill difference to the default key if it's defined.
     if data.has_key?('default') and not noinfill
-      add_time(data['default'], date, (hm2s(config['infill']) - total_seconds),
-               comment, config, state, options.state_file)
+
+      add_time(data['default'], opts.merge!({
+        :date       => date,
+        :seconds    => (hm2s(config['infill']) - total_seconds),
+        :comment    => comment,
+      }))
+
     end
   end
   write_state(state, options.state_file)

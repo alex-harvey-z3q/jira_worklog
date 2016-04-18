@@ -11,7 +11,7 @@ describe '#add_time' do
       'Content-Type'    => 'application/json',
       'User-Agent'      => 'unirest-ruby/1.1',
     },
-    :body => "{\"comment\":\"\",\"started\":\"2016-04-16T09:00:00.000+1000\",\"timeSpentSeconds\":1800}",
+    :body => '{"comment":"","started":"2016-04-16T09:00:00.000+1000","timeSpentSeconds":1800}',
   }
   bad_response = {
     :status  => 404,
@@ -35,16 +35,32 @@ describe '#add_time' do
   end
 
   it 'should raise if issue does not exist' do
-    stub_request(:post, url).with(request).to_return(bad_response)
     allow_any_instance_of(Object).to receive(:write_state).and_return(nil)
-    expect { add_time('DEV-123', '2016-04-16', 1800, '', config, {}, '/some/file') }.
-      to raise_error(RuntimeError, /Failed adding to worklog in DEV-123 for 2016-04-16/)
+    stub_request(:post, url).with(request).to_return(bad_response)
+    expect {
+      add_time('DEV-123', {
+        :date       => '2016-04-16',
+        :seconds    => 1800,
+        :comment    => '',
+        :config     => config,
+        :state      => {},
+        :state_file => '/some/file',
+      })
+    }.to raise_error(RuntimeError, /Failed adding to worklog in DEV-123 for 2016-04-16/)
   end
 
   it 'should quietly return nil if all is well' do
     stub_request(:post, url).with(request).to_return(good_response)
-    expect(add_time('DEV-123', '2016-04-16', 1800, '', config, {}, '/some/file')).
-      to be_nil
+    expect(
+      add_time('DEV-123', {
+        :date       => '2016-04-16',
+        :seconds    => 1800,
+        :comment    => '',
+        :config     => config,
+        :state      => {},
+        :state_file => '/some/file',
+      })
+    ).to be_nil
   end
 end
 
