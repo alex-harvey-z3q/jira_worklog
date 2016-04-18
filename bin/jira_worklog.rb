@@ -151,6 +151,7 @@ def get_data(data_file)
           " -----> #{v} in #{data['worklog'].to_s} is not an Array"
     end
     v.each do |l|
+      next if l == 'noinfill'
       if l !~ /[A-Z]+-\d+:(?:\d+h?|\d+m|\d+h +\d+m)$/
         raise "Syntax error in Worklog:" +
           " -----> #{l} in #{data['worklog'].to_s}"
@@ -195,10 +196,15 @@ if $0 == __FILE__
     # Count total seconds used today.
     total_seconds = 0
 
+    noinfill = false
+
     values.each do |value|
 
       # Skip the data file time entry if it's already in state.
       next if state.has_key?(date) and state[date].include?(value)
+
+      # Handle an entry that is just 'noinfill'
+      noinfill = true and next if value == 'noinfill'
 
       ticket, hm = /(.*):(.*)/.match(value).captures
       add_time(ticket, date, hm2s(hm), config, state, options.state_file)
@@ -207,7 +213,7 @@ if $0 == __FILE__
     end
 
     # Infill difference to the default key if it's defined.
-    if data.has_key?('default')
+    if data.has_key?('default') and not noinfill
       add_time(data['default'], date, (hm2s(config['infill']) - total_seconds),
                config, state, options.state_file)
     end

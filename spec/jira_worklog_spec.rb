@@ -134,6 +134,11 @@ describe '#get_data' do
     allow(YAML).to receive(:load_file).with('/some/file').and_return({'worklog'=>{'2016-04-14'=>['MODULES-3125:8']}})
     expect(get_data('/some/file')).to include({'worklog'=>{'2016-04-14'=>['MODULES-3125:8']}})
   end
+
+  it 'should accept a noinfill option' do
+    allow(YAML).to receive(:load_file).with('/some/file').and_return({'worklog'=>{'2016-04-14'=>['MODULES-3125:4h', 'noinfill']}})
+    expect(get_data('/some/file')).to include({'worklog'=>{'2016-04-14'=>['MODULES-3125:4h', 'noinfill']}})
+  end
 end
 
 describe '#s2hm' do

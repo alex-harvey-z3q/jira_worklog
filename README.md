@@ -53,7 +53,7 @@ The parameters are as follows:
 
 #### `infill`
 
-The `infill` option specifies the number of hours worked per day.  If not specified, this option is not used.
+The `infill` option specifies the number of hours worked per day.  The default is `8h`.  To disable infilling, do not specify `default` in the data file (see below).
 
 #### `server`
 
@@ -89,6 +89,9 @@ worklog:
   - PROJ-4123:3h
   - DEV-6300:1h
   '2016-04-16': []  # log infill hours to default.
+  '2016-04-17':
+  - PROJ-4123
+  - noinfill    # disable infilling for this date only.
 ```
 
 #### `default`
@@ -98,6 +101,10 @@ This is a default Jira ticket that can be used to log all remaining time against
 #### `worklog`
 
 The worklog is a Hash of Arrays of date:time pairs in ISO 8601 date format.  We use a colon-separated string to minimise key strokes spent on data entry.
+
+##### `noinfill`
+
+If a worklog contains a row `noinfill`, infilling is disabled for that day only.  If you need to disable infilling everywhere, simply do not specify a default.
 
 ### State file
 
