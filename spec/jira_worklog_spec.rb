@@ -137,20 +137,17 @@ describe '#process' do
   end
 
   it 'should not infill if the date is in state' do
-    state = {}
+    state = {
+      '2016-04-14'=>['MODULES-3125:30m'],
+    }
     data = {
       'default'=>'BKR-723',
       'worklog'=>{
-        '2016-04-14'=>['MODULES-3125:30m', 'noinfill'],
+        '2016-04-14'=>['DEV-233:30m'],
       },
     }
-    [
-      ['MODULES-3125', '2016-04-14', 1800,         '79'],
-      ['BKR-723',      '2016-04-14', 28800 - 1800, '80'],
-    ].each do |ticket, date, time_in_seconds, content_length|
-      url, request = stubbed_url_and_request(ticket, date, time_in_seconds, content_length)
-      stub_request(:post, url).with(request).to_return(good_response)
-    end
+    url, request = stubbed_url_and_request('DEV-233', '2016-04-14', 1800, '79')
+    stub_request(:post, url).with(request).to_return(good_response)
     process(data, state, config, options)
   end
 
