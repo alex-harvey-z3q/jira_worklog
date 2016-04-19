@@ -1,6 +1,9 @@
 require 'spec_helper'
 require_relative '../bin/jira_worklog'
 
+options = OpenStruct.new
+options.state_file = 'state_file.tmp'
+
 config = {
   'server'      => 'jira.example.com',
   'username'    => 'alex',
@@ -9,10 +12,39 @@ config = {
   'infill'      => '8h',
 }
 
+def stubbed_url_and_request(ticket, date, time_in_seconds, content_length)
+  [
+    url = "https://alex:password@jira.example.com/rest/api/2/issue/#{ticket}/worklog",
+    request = {
+      :headers => {
+        'Accept'          => '*/*; q=0.5, application/xml',
+        'Accept-Encoding' => 'gzip',
+        'Content-Length'  => content_length,
+        'Content-Type'    => 'application/json',
+        'User-Agent'      => 'unirest-ruby/1.1',
+      },
+      :body => "{\"comment\":\"\",\"started\":\"#{date}T09:00:00.000+1000\",\"timeSpentSeconds\":#{time_in_seconds}}",
+    },
+  ]
+end
+
+bad_response = {
+  :status  => 404,
+  :body    => 'Issue Does Not Exist',
+  :headers => {},
+}
+good_response = {
+  :status  => 201,
+  :body    => 'Updated',
+  :headers => {},
+}
+
 describe '#process' do
+  before :each do
+    allow(STDOUT).to receive(:puts)  # silence puts.
+  end
+
   it 'should take empty state and replace it with the worklog in data' do
-    options = OpenStruct.new
-    options.state_file = 'state_file.tmp'
     state = {}
     data = {
       'default'=>'BKR-723',
@@ -26,8 +58,6 @@ describe '#process' do
   end
 
   it 'should take state and add the difference between worklog' do
-    options = OpenStruct.new
-    options.state_file = 'state_file.tmp'
     state = {
       '2016-04-14'=>['MODULES-3125:30m'],
     }
@@ -44,8 +74,6 @@ describe '#process' do
   end
 
   it 'should insert time entries into state' do
-    options = OpenStruct.new
-    options.state_file = 'state_file.tmp'
     state = {
       '2016-04-14'=>['MODULES-3125:30m'],
       '2016-04-15'=>['MODULES-3125:1h'],
@@ -64,40 +92,94 @@ describe '#process' do
     process(data, state, config, options)
     expect(get_state('state_file.tmp')).to eq expected
   end
+
+  it 'should not save noinfill in state' do
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-14'=>['MODULES-3125:30m', 'noinfill'],
+      },
+    }
+    expected = {
+      '2016-04-14'=>['MODULES-3125:30m'],
+    }
+    allow_any_instance_of(Object).to receive(:add_time).and_return(nil)
+    process(data, state, config, options)
+    expect(get_state('state_file.tmp')).to eq expected
+  end
+
+  it 'should add an infill of 27000 seconds if 30m time is booked' do
+
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-14'=>['MODULES-3125:30m'],
+      },
+    }
+
+    # Content length was calculated by letting the request fail, in
+    # which case Webmocks reports details of the unregistered
+    # request.
+
+    [
+      ['MODULES-3125', '2016-04-14', 1800,         '79'],
+      ['BKR-723',      '2016-04-14', 28800 - 1800, '80'],
+    ].each do |ticket, date, time_in_seconds, content_length|
+      url, request = stubbed_url_and_request(ticket, date, time_in_seconds, content_length)
+
+      # Each stubbed request is an expectation.
+      stub_request(:post, url).with(request).to_return(good_response)
+
+    end
+    process(data, state, config, options)
+  end
+
+  it 'should not infill if the date is in state' do
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-14'=>['MODULES-3125:30m', 'noinfill'],
+      },
+    }
+    [
+      ['MODULES-3125', '2016-04-14', 1800,         '79'],
+      ['BKR-723',      '2016-04-14', 28800 - 1800, '80'],
+    ].each do |ticket, date, time_in_seconds, content_length|
+      url, request = stubbed_url_and_request(ticket, date, time_in_seconds, content_length)
+      stub_request(:post, url).with(request).to_return(good_response)
+    end
+    process(data, state, config, options)
+  end
+
+  it 'should not infill if time adds up to more than infill hours' do
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-14'=>['MODULES-3125:8h 30m'],
+      },
+    }
+    url, request = stubbed_url_and_request('MODULES-3125', '2016-04-14', 30600, '80')
+    stub_request(:post, url).with(request).to_return(good_response)
+    process(data, state, config, options)
+  end
+
   after :each do
     File.delete('state_file.tmp')
   end
 end
 
 describe '#add_time' do
-  url = 'https://alex:password@jira.example.com/rest/api/2/issue/DEV-123/worklog'
-  request = {
-    :headers => {
-      'Accept'          => '*/*; q=0.5, application/xml',
-      'Accept-Encoding' => 'gzip',
-      'Content-Length'  => '79',
-      'Content-Type'    => 'application/json',
-      'User-Agent'      => 'unirest-ruby/1.1',
-    },
-    :body => '{"comment":"","started":"2016-04-16T09:00:00.000+1000","timeSpentSeconds":1800}',
-  }
-  bad_response = {
-    :status  => 404,
-    :body    => 'Issue Does Not Exist',
-    :headers => {},
-  }
-  good_response = {
-    :status  => 201,
-    :body    => 'Updated',
-    :headers => {},
-  }
-
   before :each do
     allow(STDOUT).to receive(:puts)  # silence puts.
   end
 
   it 'should raise if issue does not exist' do
     allow_any_instance_of(Object).to receive(:write_state).and_return(nil)
+    url, request = stubbed_url_and_request('DEV-123', '2016-04-16', 1800, '79')
     stub_request(:post, url).with(request).to_return(bad_response)
     expect {
       add_time('DEV-123', {
@@ -111,7 +193,8 @@ describe '#add_time' do
     }.to raise_error(RuntimeError, /Failed adding to worklog in DEV-123 for 2016-04-16/)
   end
 
-  it 'should quietly return nil if all is well' do
+  it 'should return nil if all is well' do
+    url, request = stubbed_url_and_request('DEV-123', '2016-04-16', 1800, '79')
     stub_request(:post, url).with(request).to_return(good_response)
     expect(
       add_time('DEV-123', {
@@ -140,6 +223,15 @@ describe '#get_config' do
     allow(YAML).to receive(:load_file).with('/some/file').and_return({'server'=>'jira.example.com', 'username'=>'fred', 'infill'=>'I_am_bad'})
     expect { get_config('/some/file') }.to raise_error(RuntimeError, /Syntax error in config file/)
   end
+
+  it 'should set a default of 8h if no infill is given' do
+    allow(YAML).to receive(:load_file).with('/some/file').and_return({'server'=>'jira.example.com', 'username'=>'fred'})
+    allow_any_instance_of(Object).to receive(:get_password).and_return('password')
+    expect(get_config('/some/file')).to include('infill'=>'8h')
+  end
+end
+
+describe '#write_state and #get_state' do
 
   it 'should set a default of 8h if no infill is given' do
     allow(YAML).to receive(:load_file).with('/some/file').and_return({'server'=>'jira.example.com', 'username'=>'fred'})
