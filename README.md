@@ -60,7 +60,9 @@ The parameters are as follows:
 
 #### `infill`
 
-The `infill` option specifies the number of hours worked per day.  The default is `8h`.  To disable infilling, do not specify `default` in the data file (see below).
+The `infill` option specifies the number of hours worked per day, and is used to calculate the number of hours to infill to the `default` ticket.  The default is `8h`.  To disable infilling, do not specify `default` in the data file (see below).
+
+Note that infilling will never occur on Saturdays and Sundays, although at this stage it will on public holidays.  Infilling will also not occur if the number of ours worked equals or exceeds `infill`.
 
 #### `server`
 

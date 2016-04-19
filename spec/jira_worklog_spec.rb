@@ -154,6 +154,19 @@ describe '#process' do
     process(data, state, config, options)
   end
 
+  it 'should not infill if the date is a weekend' do
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-10'=>['MODULES-3125:30m'],
+      },
+    }
+    url, request = stubbed_url_and_request('MODULES-3125', '2016-04-10', 1800, '79')
+    stub_request(:post, url).with(request).to_return(good_response)
+    process(data, state, config, options)
+  end
+
   it 'should not infill if time adds up to more than infill hours' do
     state = {}
     data = {
@@ -348,5 +361,15 @@ describe '#hm2s' do
 
   it 'should convert 3429h 21m to 12345660 seconds' do
     expect(hm2s('3429h 21m')).to eq 12345660
+  end
+end
+
+describe '#is_weekend?' do
+  it 'should return true for Saturday' do
+    expect(is_weekend?('2016-04-02')).to be true
+  end
+
+  it 'should return false for Friday' do
+    expect(is_weekend?('2016-04-08')).to be false
   end
 end

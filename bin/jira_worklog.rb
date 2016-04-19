@@ -5,6 +5,7 @@ require 'yaml'
 require 'highline'
 require 'unirest'
 require 'optparse'
+require 'date'
 
 ##
 # Adds time in seconds via Jira 7 REST API v2
@@ -57,6 +58,13 @@ end
 
 def s2hm(s)
   "%sh %sm" % [s / 3600, s / 60 % 60].map { |t| t.to_s }
+end
+
+##
+# Determine if a date is a weekend day.
+
+def is_weekend?(date)
+  ['Saturday', 'Sunday'].include?(Date.parse(date).strftime('%A'))
 end
 
 ##
@@ -197,22 +205,21 @@ def process(data, state, config, options)
     noinfill = false
 
     # If an identical Hash for date is in state, just
-    # move on silently.  If there's an entry but it's
-    # not identical, set noinfill.  Otherwise every
-    # attempt to back-date some time would result in
-    # multiple infill entries.
+    # move on silently.
     #
     # In the event that this date has never been seen
-    # before, we initialise this date with an empty
-    # array.
+    # before, initialise with an empty array.
 
-    if state.has_key?(date) and state[date] == values
-      next
-    elsif state.has_key?(date) and state[date] != values
+    next if state.has_key?(date) and state[date] == values
+    state[date] = [] if !state.has_key?(date)
+
+    if state.has_key?(date) and state[date] != values
       puts "Not infilling on #{date} due to noinfill"
       noinfill = true
-    elsif !state.has_key?(date)
-      state[date] = []
+    end
+    if is_weekend?(date)
+      puts "Not infilling on weekend day #{date}"
+      noinfill = true
     end
 
     total_seconds = 0
