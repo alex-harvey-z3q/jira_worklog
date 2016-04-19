@@ -233,19 +233,10 @@ end
 
 describe '#write_state and #get_state' do
 
-  it 'should set a default of 8h if no infill is given' do
-    allow(YAML).to receive(:load_file).with('/some/file').and_return({'server'=>'jira.example.com', 'username'=>'fred'})
-    allow_any_instance_of(Object).to receive(:get_password).and_return('password')
-    expect(get_config('/some/file')).to include('infill'=>'8h')
-  end
-end
-
-describe '#write_state and #get_state' do
-  state = {'2016-04-14'=>['DEV-6233:4h', 'PROJ-4123:3h 30m'], '2016-04-15'=>['PROJ-3215:30m']}
-
   it 'should write an array and read it back from disk' do
+    state = {'2016-04-14'=>['DEV-6233:4h', 'PROJ-4123:3h 30m'], '2016-04-15'=>['PROJ-3215:30m']}
     write_state(state, 'state_file.tmp')
-    expect(get_state('state_file.tmp')).to eq state
+    expect(get_state('state_file.tmp')).to eql state
     File.delete('state_file.tmp')
   end
 end 
