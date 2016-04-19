@@ -193,29 +193,42 @@ def process(data, state, config, options)
 
   data['worklog'].each do |date, values|
 
-    # Skip the data file date entry if an identical one is in state.
-    next if state.has_key?(date) and state[date] == values
-
-    # Create a record in state file for this date if there isn't one.
-    state[date] = [] unless state.has_key?(date)
-
-    # Count total seconds used today.
-    total_seconds = 0
-
     noinfill = false
+
+    # If an identical Hash for date is in state, just
+    # move on silently.  If there's an entry but it's
+    # not identical, set noinfill.  Otherwise every
+    # attempt to back-date some time would result in
+    # multiple infill entries.
+    #
+    # In the event that this date has never been seen
+    # before, we initialise this date with an empty
+    # array.
+
+    if state.has_key?(date) and state[date] == values
+      next
+    elsif state.has_key?(date) and state[date] != values
+      puts "Not infilling on #{date} due to noinfill"
+      noinfill = true
+    elsif !state.has_key?(date)
+      state[date] = []
+    end
+
+    total_seconds = 0
 
     values.each do |value|
 
-      # Skip the data file time entry if it's already in state.
       next if state.has_key?(date) and state[date].include?(value)
 
-      # Handle an entry that is just 'noinfill'
-      noinfill = true and next if value == 'noinfill'
+      if value == 'noinfill'
+        noinfill = true
+        puts "Not infilling on #{date} due to noinfill"
+        next
+      end
 
       ticket, hm, comment = value.split(/:/)
       comment ||= ''
 
-      # Add to Jira.
       add_time(ticket, opts.merge!({
         :date    => date,
         :seconds => hm2s(hm),
@@ -226,10 +239,9 @@ def process(data, state, config, options)
       total_seconds += hm2s(hm)
     end
 
-    # Infill difference to the default key if it's defined.
-    if data.has_key?('default') and not noinfill
+    if data.has_key?('default') and not noinfill and
+       total_seconds <= hm2s(config['infill'])
 
-      # Add to Jira with no comment.
       add_time(data['default'], opts.merge!({
         :date       => date,
         :seconds    => (hm2s(config['infill']) - total_seconds),
@@ -239,7 +251,6 @@ def process(data, state, config, options)
     end
   end
 
-  # Update state file.
   write_state(state, options.state_file)
 end
 
