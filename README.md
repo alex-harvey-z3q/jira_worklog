@@ -62,7 +62,22 @@ The parameters are as follows:
 
 The `infill` option specifies the number of hours worked per day, and is used to calculate the number of hours to infill to the `default` ticket.  The default is `8h`.  To disable infilling, do not specify `default` in the data file (see below).
 
-Note that infilling will never occur on Saturdays and Sundays, although at this stage it will on public holidays.  Infilling will also not occur if the number of ours worked equals or exceeds `infill`.
+If you need to override infilling to the `default` ticket for one day only, this can be specified as:
+
+```yaml
+'2016-04-19':
+- DEV-123:infill
+```
+
+If you wish to disable infilling for one day only, add a line `noinfill` as follows:
+
+```yaml
+'2016-04-19':
+- DEV-123:4h
+- noinfill
+```
+
+Note that infilling will never occur on Saturdays and Sundays, unless explicitly told to do so, although at this stage it will on public holidays.  Infilling will also not occur if the number of ours worked equals or exceeds `infill`.
 
 #### `server`
 
@@ -84,25 +99,21 @@ For example:
 
 ```yaml
 ---
-default: 'PROJ-4123'
+default: 'PROJ-4123' # default ticket for infill.
 worklog:
-  '2016-04-14':
-  - DEV-6233:4h
-  - PROJ-4123:3h 30m
-  - DEV-6300:1h
   '2016-04-15':
-  - PROJ-4123:30m
-  - DEV-6233:30m
-  - PROJ-4123:2h
-  - DEV-6233:30m
-  - PROJ-4123:3h
-  - DEV-6300:1h
-  '2016-04-16': []               # infill all to default.
+  - PROJ-4123:3h 30m
+  - DEV-6233:3h 30m
+  - DEV-6300:30m
+  '2016-04-16': []   # infill all to default.
   '2016-04-17':
-  - PROJ-4123:1h:Woken by pager  # optional comment.
+  - PROJ-4123:1h:Woken by pager  # add an optional comment.
   '2016-04-18':
   - PROJ-4123:1h
-  - noinfill                     # disable infilling.
+  - noinfill         # disable infilling for this day.
+  '2016-04-19':
+  - PROJ-4123:1h
+  - DEV-6233:infill  # specify infill explicitly.
 ```
 
 #### `default`

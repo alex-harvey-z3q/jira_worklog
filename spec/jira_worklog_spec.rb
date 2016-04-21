@@ -136,6 +136,28 @@ describe '#process' do
     process(data, state, config, options)
   end
 
+  it 'should add an infill to a specific ticket if infill override is specified' do
+
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-14'=>['MODULES-3125:30m', 'DEV-123:infill'],
+      },
+    }
+    [
+      ['MODULES-3125', '2016-04-14', 1800,         '79'],
+      ['DEV-123',      '2016-04-14', 28800 - 1800, '80'],
+    ].each do |ticket, date, time_in_seconds, content_length|
+      url, request = stubbed_url_and_request(ticket, date, time_in_seconds, content_length)
+
+      # Each stubbed request is an expectation.
+      stub_request(:post, url).with(request).to_return(good_response)
+
+    end
+    process(data, state, config, options)
+  end
+
   it 'should not infill if the date is in state' do
     state = {
       '2016-04-14'=>['MODULES-3125:30m'],
@@ -309,6 +331,11 @@ describe '#get_data' do
   it 'should accept a noinfill option' do
     allow(YAML).to receive(:load_file).with('/some/file').and_return({'worklog'=>{'2016-04-14'=>['MODULES-3125:4h', 'noinfill']}})
     expect(get_data('/some/file')).to include({'worklog'=>{'2016-04-14'=>['MODULES-3125:4h', 'noinfill']}})
+  end
+
+  it 'should accept an infill override' do
+    allow(YAML).to receive(:load_file).with('/some/file').and_return({'worklog'=>{'2016-04-14'=>['MODULES-3125:4h', 'DEV-123:infill']}})
+    expect(get_data('/some/file')).to include({'worklog'=>{'2016-04-14'=>['MODULES-3125:4h', 'DEV-123:infill']}})
   end
 
   it 'should accept a comment' do

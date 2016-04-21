@@ -163,7 +163,7 @@ def get_data(data_file)
     end
     v.each do |l|
       next if l == 'noinfill'
-      if l !~ /[A-Z]+-\d+:(?:\d+h?|\d+m|\d+h +\d+m)(?::.*)?$/
+      if l !~ /[A-Z]+-\d+:(?:\d+h?|\d+m|\d+h +\d+m|infill)(?::.*)?$/
         raise "Syntax error in Worklog:" +
           " -----> #{l} in #{data['worklog'].to_s}"
       end
@@ -223,6 +223,7 @@ def process(data, state, config, options)
     end
 
     total_seconds = 0
+    default_override = nil
 
     values.each do |value|
 
@@ -236,6 +237,8 @@ def process(data, state, config, options)
 
       ticket, hm, comment = value.split(/:/)
       comment ||= ''
+
+      default_override = ticket and next if hm == 'infill'
 
       add_time(ticket, opts.merge!({
         :date    => date,
@@ -251,6 +254,14 @@ def process(data, state, config, options)
        total_seconds <= hm2s(config['infill'])
 
       add_time(data['default'], opts.merge!({
+        :date       => date,
+        :seconds    => (hm2s(config['infill']) - total_seconds),
+        :comment    => '',
+      }))
+
+    elsif default_override
+
+      add_time(default_override, opts.merge!({
         :date       => date,
         :seconds    => (hm2s(config['infill']) - total_seconds),
         :comment    => '',
