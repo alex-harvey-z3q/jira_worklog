@@ -126,7 +126,7 @@ This is a default Jira ticket that can be used to log all remaining time against
 
 The worklog is a Hash of Arrays of `date:time` pairs, or optionally `date:time:comment` triplets.  The date must be in ISO 8601 date format.  We use a colon-separated string to minimise key strokes spent on data entry.
 
-##### `noinfill`
+#### `noinfill`
 
 If a worklog contains a row `noinfill`, infilling is disabled for that day only.  If you need to disable infilling everywhere, simply do not specify a default.
 
