@@ -79,6 +79,8 @@ If you wish to disable infilling for one day only, add a line `noinfill` as foll
 
 Note that infilling will never occur on Saturdays and Sundays, unless explicitly told to do so, although at this stage it will on public holidays.  Infilling will also not occur if the number of ours worked equals or exceeds `infill`.
 
+In the event that a date is already in the state file and a new time entry is found in data (which would only happen if a previous date is modified in the data file, after it has already been loaded), infilling is assumed to have already taken place during the load, and is disabled for this day automatically.
+
 #### `server`
 
 The Jira server host name.

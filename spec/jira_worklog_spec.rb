@@ -49,7 +49,7 @@ describe '#process' do
     data = {
       'default'=>'BKR-723',
       'worklog'=>{
-        '2016-04-14'=>['MODULES-3125:30m'],
+        '2016-04-14'=>['MODULES-3125:30m', 'BKR-723:7h 30m'],
       },
     }
     allow_any_instance_of(Object).to receive(:add_time).and_return(nil)
@@ -59,50 +59,18 @@ describe '#process' do
 
   it 'should take state and add the difference between worklog' do
     state = {
-      '2016-04-14'=>['MODULES-3125:30m'],
+      '2016-04-14'=>['MODULES-3125:30m', 'DEV-123:7h 30m'],
     }
     data = {
       'default'=>'BKR-723',
       'worklog'=>{
         '2016-04-14'=>['MODULES-3125:30m'],
-        '2016-04-15'=>['MODULES-3125:1h'],
-      },
-    }
-    allow_any_instance_of(Object).to receive(:add_time).and_return(nil)
-    process(data, state, config, options)
-    expect(get_state('state_file.tmp')).to eq data['worklog']
-  end
-
-  it 'should insert time entries into state' do
-    state = {
-      '2016-04-14'=>['MODULES-3125:30m'],
-      '2016-04-15'=>['MODULES-3125:1h'],
-    }
-    data = {
-      'default'=>'BKR-723',
-      'worklog'=>{
-        '2016-04-14'=>['BKR-723:1h'],
+        '2016-04-15'=>['MODULES-3125:1h', 'BKR-723:7h 0m'],
       },
     }
     expected = {
-      '2016-04-14'=>['MODULES-3125:30m', 'BKR-723:1h'],
-      '2016-04-15'=>['MODULES-3125:1h'],
-    }
-    allow_any_instance_of(Object).to receive(:add_time).and_return(nil)
-    process(data, state, config, options)
-    expect(get_state('state_file.tmp')).to eq expected
-  end
-
-  it 'should not save noinfill in state' do
-    state = {}
-    data = {
-      'default'=>'BKR-723',
-      'worklog'=>{
-        '2016-04-14'=>['MODULES-3125:30m', 'noinfill'],
-      },
-    }
-    expected = {
-      '2016-04-14'=>['MODULES-3125:30m'],
+      '2016-04-14'=>['MODULES-3125:30m', 'DEV-123:7h 30m'],
+      '2016-04-15'=>['MODULES-3125:1h', 'BKR-723:7h 0m'],
     }
     allow_any_instance_of(Object).to receive(:add_time).and_return(nil)
     process(data, state, config, options)
@@ -133,70 +101,7 @@ describe '#process' do
       stub_request(:post, url).with(request).to_return(good_response)
 
     end
-    process(data, state, config, options)
-  end
-
-  it 'should add an infill to a specific ticket if infill override is specified' do
-
-    state = {}
-    data = {
-      'default'=>'BKR-723',
-      'worklog'=>{
-        '2016-04-14'=>['MODULES-3125:30m', 'DEV-123:infill'],
-      },
-    }
-    [
-      ['MODULES-3125', '2016-04-14', 1800,         '79'],
-      ['DEV-123',      '2016-04-14', 28800 - 1800, '80'],
-    ].each do |ticket, date, time_in_seconds, content_length|
-      url, request = stubbed_url_and_request(ticket, date, time_in_seconds, content_length)
-
-      # Each stubbed request is an expectation.
-      stub_request(:post, url).with(request).to_return(good_response)
-
-    end
-    process(data, state, config, options)
-  end
-
-  it 'should not infill if the date is in state' do
-    state = {
-      '2016-04-14'=>['MODULES-3125:30m'],
-    }
-    data = {
-      'default'=>'BKR-723',
-      'worklog'=>{
-        '2016-04-14'=>['DEV-233:30m'],
-      },
-    }
-    url, request = stubbed_url_and_request('DEV-233', '2016-04-14', 1800, '79')
-    stub_request(:post, url).with(request).to_return(good_response)
-    process(data, state, config, options)
-  end
-
-  it 'should not infill if the date is a weekend' do
-    state = {}
-    data = {
-      'default'=>'BKR-723',
-      'worklog'=>{
-        '2016-04-10'=>['MODULES-3125:30m'],
-      },
-    }
-    url, request = stubbed_url_and_request('MODULES-3125', '2016-04-10', 1800, '79')
-    stub_request(:post, url).with(request).to_return(good_response)
-    process(data, state, config, options)
-  end
-
-  it 'should not infill if time adds up to more than infill hours' do
-    state = {}
-    data = {
-      'default'=>'BKR-723',
-      'worklog'=>{
-        '2016-04-14'=>['MODULES-3125:8h 30m'],
-      },
-    }
-    url, request = stubbed_url_and_request('MODULES-3125', '2016-04-14', 30600, '80')
-    stub_request(:post, url).with(request).to_return(good_response)
-    process(data, state, config, options)
+    process(infill(data, '8h', state), state, config, options)
   end
 
   after :each do
@@ -238,6 +143,87 @@ describe '#add_time' do
         :state_file => '/some/file',
       })
     ).to be_nil
+  end
+end
+
+describe '#infill' do
+  it 'should auto infill by 7h 30m if 30m is booked to one day' do
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-11'=>['MODULES-3125:30m'],
+      },
+    }
+    expected = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-11'=>['MODULES-3125:30m', 'BKR-723:7h 30m'],
+      },
+    }
+    expect(infill(data, '8h', state)).to eq expected
+  end
+
+  it 'should not auto infill on weekend days' do
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-10'=>['MODULES-3125:30m'],
+      },
+    }
+    allow_any_instance_of(Object).to receive(:is_weekend?).and_return(true)
+    expect(infill(data, '8h', state)).to eq data
+  end
+
+  it 'should not auto infill if time adds up to more than infill hours' do
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-11'=>['MODULES-3125:8h 30m'],
+      },
+    }
+    expect(infill(data, '8h', state)).to eq data
+  end
+
+  it 'should use an explicit infill rather than default if present' do
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-11'=>['MODULES-3125:30m', 'DEV-123:infill', 'DEV-456:1h'],
+      },
+    }
+    expected = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-11'=>['MODULES-3125:30m', 'DEV-456:1h', 'DEV-123:6h 30m'],
+      },
+    }
+    expect(infill(data, '8h', state)).to eq expected
+  end
+
+  it 'should not auto infill if the date is in state' do
+    state = {'2016-04-14'=>['DEV-6233:4h', 'PROJ-4123:4h']}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-11'=>['MODULES-3125:30m', 'DEV-456:1h'],
+      },
+    }
+    expect(infill(data, '8h', state)).to eq data
+  end
+
+  it 'should raise if explicit infill given and time exceeds infill' do
+    state = {}
+    data = {
+      'default'=>'BKR-723',
+      'worklog'=>{
+        '2016-04-11'=>['MODULES-3125:8h 30m', 'DEV-456:infill'],
+      },
+    }
+    expect { infill(data, '8h', state) }.to raise_error(RuntimeError, /Explicit infill given but total time exceeds infill/)
   end
 end
 

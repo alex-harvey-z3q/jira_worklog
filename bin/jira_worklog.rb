@@ -190,6 +190,62 @@ def write_state(state, state_file)
 end
 
 ##
+# Infill data.
+
+def infill(data, infill_to, state)
+
+  data['worklog'].each do |date, values|
+    next if is_weekend?(date)
+    auto_infill = true unless state.has_key?(date)
+    explicit_infill = nil
+
+    total_seconds = 0
+
+    values.each do |value|
+
+      if value == 'noinfill'
+        auto_infill = false
+        data['worklog'][date] =
+          data['worklog'][date].reject! { |x| x == 'noinfill' }
+        next
+
+      end
+
+      ticket, hm, comment = value.split(/:/)
+      explicit_infill = ticket and next if hm == 'infill'
+
+      total_seconds += hm2s(hm)
+
+    end
+
+    if data.has_key?('default') and
+        auto_infill and not explicit_infill and
+        total_seconds < hm2s(infill_to)
+
+      data['worklog'][date].push(
+        [data['default'], s2hm(hm2s(infill_to) - total_seconds)].join(':'))
+
+    end
+
+    if explicit_infill
+      if total_seconds <= hm2s(infill_to)
+        data['worklog'][date] =
+          data['worklog'][date].reject! { |x| x =~ /:infill/ }
+
+        data['worklog'][date].push(
+          [explicit_infill, s2hm(hm2s(infill_to) - total_seconds)].join(':'))
+
+      else
+        raise "Explicit infill given but total time exceeds infill:" +
+              " -----> at #{date}=>#{values.to_s}"
+      end
+    end
+  end
+
+  data
+end
+
+##
 # Main loop.
 
 def process(data, state, config, options)
@@ -202,43 +258,23 @@ def process(data, state, config, options)
 
   data['worklog'].each do |date, values|
 
-    noinfill = false
-
     # If an identical Hash for date is in state, just
     # move on silently.
-    #
+
     # In the event that this date has never been seen
     # before, initialise with an empty array.
 
     next if state.has_key?(date) and state[date] == values
     state[date] = [] if !state.has_key?(date)
 
-    if state.has_key?(date) and state[date] != values
-      puts "Not infilling on #{date} due to noinfill"
-      noinfill = true
-    end
-    if is_weekend?(date)
-      puts "Not infilling on weekend day #{date}"
-      noinfill = true
-    end
-
     total_seconds = 0
-    default_override = nil
 
     values.each do |value|
 
       next if state.has_key?(date) and state[date].include?(value)
 
-      if value == 'noinfill'
-        noinfill = true
-        puts "Not infilling on #{date} due to noinfill"
-        next
-      end
-
       ticket, hm, comment = value.split(/:/)
       comment ||= ''
-
-      default_override = ticket and next if hm == 'infill'
 
       add_time(ticket, opts.merge!({
         :date    => date,
@@ -250,24 +286,6 @@ def process(data, state, config, options)
       total_seconds += hm2s(hm)
     end
 
-    if data.has_key?('default') and not noinfill and
-       total_seconds <= hm2s(config['infill'])
-
-      add_time(data['default'], opts.merge!({
-        :date       => date,
-        :seconds    => (hm2s(config['infill']) - total_seconds),
-        :comment    => '',
-      }))
-
-    elsif default_override
-
-      add_time(default_override, opts.merge!({
-        :date       => date,
-        :seconds    => (hm2s(config['infill']) - total_seconds),
-        :comment    => '',
-      }))
-
-    end
   end
 
   write_state(state, options.state_file)
@@ -278,5 +296,5 @@ if $0 == __FILE__
   data    = get_data(options.data_file)
   state   = get_state(options.state_file)
   config  = get_config(options.config_file)
-  process(data, state, config, options)
+  process(infill(data, config['infill'], state), state, config, options)
 end
